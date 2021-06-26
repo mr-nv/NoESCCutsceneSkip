@@ -3,6 +3,10 @@
 typedef bool( __cdecl* IsCutsceneSkipButtonBeingPressedFn )( );
 IsCutsceneSkipButtonBeingPressedFn original_IsCutsceneSkipButtonBeingPressed;
 
+WNDPROC original_WindowProc;
+
+bool pressedenter = false;
+
 bool __cdecl hooked_IsCutsceneSkipButtonBeingPressed( )
 {
 	static auto gamewindow = FindWindowA( 0, "GTA: San Andreas" );
@@ -15,7 +19,27 @@ bool __cdecl hooked_IsCutsceneSkipButtonBeingPressed( )
 
 	if( GetActiveWindow( ) != gamewindow ) return original_IsCutsceneSkipButtonBeingPressed( );
 
-	return ( bool )GetAsyncKeyState( VK_RETURN );
+	return pressedenter;
+}
+
+LRESULT __stdcall hooked_WindowProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
+{
+	switch( uMsg )
+	{
+		case WM_KEYUP:
+			if( wParam == VK_RETURN )
+				pressedenter = false;
+
+			break;
+		case WM_KEYDOWN:
+			if( wParam == VK_RETURN )
+				pressedenter = true;
+
+			break;
+		default: break;
+	}
+
+	return CallWindowProcW( original_WindowProc, hWnd, uMsg, wParam, lParam );
 }
 
 void Start( )
@@ -50,6 +74,16 @@ void Start( )
 		MessageBoxA( 0, ch, "NoESCCutsceneSkip", MB_OK );
 		return;
 	}
+
+	// hook windowproc
+	HWND gamewindow = nullptr;
+	while( !gamewindow )
+	{
+		gamewindow = FindWindowA( 0, "GTA: San Andreas" );
+		Sleep( 1000 );
+	}
+
+	original_WindowProc = ( WNDPROC )SetWindowLongPtr( gamewindow, GWL_WNDPROC, ( LONG_PTR )hooked_WindowProc );
 
 	auto enablehook = MH_EnableHook( MH_ALL_HOOKS );
 	if( enablehook != MH_OK )
